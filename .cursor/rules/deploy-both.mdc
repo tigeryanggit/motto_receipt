@@ -1,0 +1,13 @@
+---
+description: Local review first; production deploy only after the user says commit and deploy
+alwaysApply: true
+---
+
+# Deployment procedure
+
+1. After any receipts-app code change, update the local app at `http://localhost:3001` only (`npm run dev`). Do not deploy to Zeabur or Hostinger.
+2. Wait. The user reviews on local, then says **commit and deploy**.
+3. On those words, commit the app change and push it to GitHub `origin/master` (`https://github.com/tigeryanggit/motto_receipt.git`) before either production deploy. Leave out secrets, sample images under `Receipts/`, and `*.traineddata`.
+4. Then deploy that same code to both Zeabur and Hostinger. Read `.cursor/skills/zeabur-local-deploy/SKILL.md` and `.cursor/skills/hostinger-vps-deploy/SKILL.md`. On PowerShell, set `NODE_OPTIONS=--use-system-ca` before `npx zeabur`.
+
+Production deploy updates this application's code only. Do not change Caddy, DNS, the booking app, the investment app, or PostgreSQL unless the user explicitly asks.

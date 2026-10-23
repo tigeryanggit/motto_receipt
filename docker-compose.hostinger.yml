@@ -1,0 +1,22 @@
+services:
+  receipts:
+    image: receipts-app:latest
+    build: .
+    container_name: receipts-app
+    environment:
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+      NODE_ENV: production
+      TZ: Asia/Hong_Kong
+      NEXT_TELEMETRY_DISABLED: "1"
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data
+    networks:
+      - motto_default
+    expose:
+      - "3000"
+
+networks:
+  motto_default:
+    external: true
