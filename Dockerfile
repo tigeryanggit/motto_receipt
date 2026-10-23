@@ -1,7 +1,9 @@
 FROM node:22-bookworm-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+# better-sqlite3 already includes prebuilt binaries. Skipping install scripts
+# avoids a node-gyp compile that needs Python and a C++ toolchain.
+RUN if [ -f package-lock.json ]; then npm ci --ignore-scripts; else npm install --ignore-scripts; fi
 
 FROM node:22-bookworm-slim AS builder
 WORKDIR /app
