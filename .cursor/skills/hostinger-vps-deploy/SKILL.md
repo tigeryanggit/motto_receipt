@@ -36,11 +36,11 @@ Remote script (pass on stdin to `bash -s`):
 ```bash
 set -euo pipefail
 rm -rf /tmp/receipts-extract
-mkdir -p /tmp/receipts-extract /root/receipts/data
+mkdir -p /tmp/receipts-extract /root/receipts/data /root/receipts/Receipts
 tar -xf /root/receipts-src.tar -C /tmp/receipts-extract
-find /root/receipts -mindepth 1 -maxdepth 1 ! -name data -exec rm -rf {} +
+find /root/receipts -mindepth 1 -maxdepth 1 ! -name data ! -name Receipts -exec rm -rf {} +
 cp -a /tmp/receipts-extract/. /root/receipts/
-chown -R 1001:1001 /root/receipts/data
+chown -R 1001:1001 /root/receipts/data /root/receipts/Receipts
 cd /root/receipts
 docker compose -f docker-compose.hostinger.yml up -d --build
 docker compose -f docker-compose.hostinger.yml ps

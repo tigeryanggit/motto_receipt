@@ -9,9 +9,11 @@ services:
       NODE_ENV: production
       TZ: Asia/Hong_Kong
       NEXT_TELEMETRY_DISABLED: "1"
+      RECEIPTS_DIR: /app/receipts
     restart: unless-stopped
     volumes:
       - ./data:/app/data
+      - ./Receipts:/app/receipts
     networks:
       - motto_default
     expose:

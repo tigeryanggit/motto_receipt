@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from "react";
 type SavedReceipt = {
   reference: string;
   fileName: string;
-  webViewLink: string;
 };
 
 async function toJpeg(file: File): Promise<Blob> {
@@ -33,13 +32,22 @@ async function toJpeg(file: File): Promise<Blob> {
   }
 }
 
-export default function CameraReceipt({ displayName }: { displayName: string }) {
-  const cameraRef = useRef<HTMLInputElement>(null);
+export default function CameraReceipt({
+  displayName,
+  onSaved,
+}: {
+  displayName: string;
+  onSaved?: () => void;
+}) {
+  const uploadRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const previewUrl = useRef("");
   const dateEdited = useRef(false);
   const amountEdited = useRef(false);
   const ocrRequest = useRef(0);
+  const [cameraOpen, setCameraOpen] = useState(false);
   const [open, setOpen] = useState(false);
   const [photo, setPhoto] = useState<Blob | null>(null);
   const [photoUrl, setPhotoUrl] = useState("");
@@ -63,6 +71,48 @@ export default function CameraReceipt({ displayName }: { displayName: string }) 
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!cameraOpen) {
+      return;
+    }
+
+    let cancelled = false;
+    let stream: MediaStream | null = null;
+    setCameraError("");
+
+    navigator.mediaDevices
+      ?.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: "environment" } },
+      })
+      .then(async (next) => {
+        stream = next;
+        if (cancelled) {
+          next.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        streamRef.current = next;
+        if (videoRef.current) {
+          videoRef.current.srcObject = next;
+          await videoRef.current.play();
+        }
+      })
+      .catch(() => {
+        if (cancelled) {
+          return;
+        }
+        setCameraError("無法開啟相機。請允許相機權限，或改用「上傳收據」。");
+        setCameraOpen(false);
+      });
+
+    return () => {
+      cancelled = true;
+      stream?.getTracks().forEach((track) => track.stop());
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    };
+  }, [cameraOpen]);
 
   useEffect(() => {
     if (!open || saved) {
@@ -141,6 +191,29 @@ export default function CameraReceipt({ displayName }: { displayName: string }) 
     }
   }
 
+  function showPhoto(jpeg: Blob) {
+    if (previewUrl.current) {
+      URL.revokeObjectURL(previewUrl.current);
+    }
+    const url = URL.createObjectURL(jpeg);
+    previewUrl.current = url;
+    setPhoto(jpeg);
+    setPhotoUrl(url);
+    dateEdited.current = false;
+    amountEdited.current = false;
+    setUserName(displayName);
+    setReceiptDate("");
+    setCategory("");
+    setAmount("");
+    setReference("");
+    setReferenceError("");
+    setOcrMessage("");
+    setSaveError("");
+    setSaved(null);
+    setOpen(true);
+    void recognizeReceipt(jpeg);
+  }
+
   function closeForm() {
     setOpen(false);
     setPhoto(null);
@@ -153,36 +226,47 @@ export default function CameraReceipt({ displayName }: { displayName: string }) 
     setPhotoUrl("");
   }
 
-  async function handlePhoto(event: React.ChangeEvent<HTMLInputElement>) {
+  function closeCamera() {
+    setCameraOpen(false);
+  }
+
+  async function capturePhoto() {
+    const video = videoRef.current;
+    if (!video || video.videoWidth === 0) {
+      setCameraError("相機尚未準備好，請再試一次。");
+      return;
+    }
+    const maxEdge = 2000;
+    const scale = Math.min(1, maxEdge / Math.max(video.videoWidth, video.videoHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+    canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+    const context = canvas.getContext("2d");
+    if (!context) {
+      setCameraError("無法拍攝相片。");
+      return;
+    }
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, "image/jpeg", 0.85);
+    });
+    if (!blob) {
+      setCameraError("無法拍攝相片。");
+      return;
+    }
+    setCameraOpen(false);
+    showPhoto(blob);
+  }
+
+  async function handleUpload(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) {
       return;
     }
-
     setCameraError("");
     try {
-      const jpeg = await toJpeg(file);
-      if (previewUrl.current) {
-        URL.revokeObjectURL(previewUrl.current);
-      }
-      const url = URL.createObjectURL(jpeg);
-      previewUrl.current = url;
-      setPhoto(jpeg);
-      setPhotoUrl(url);
-      dateEdited.current = false;
-      amountEdited.current = false;
-      setUserName(displayName);
-      setReceiptDate("");
-      setCategory("");
-      setAmount("");
-      setReference("");
-      setReferenceError("");
-      setOcrMessage("");
-      setSaveError("");
-      setSaved(null);
-      setOpen(true);
-      void recognizeReceipt(jpeg);
+      showPhoto(await toJpeg(file));
     } catch (error) {
       setCameraError(error instanceof Error ? error.message : "無法讀取相片。");
     }
@@ -211,6 +295,7 @@ export default function CameraReceipt({ displayName }: { displayName: string }) 
       }
       setSaved(payload);
       setReference(payload.reference);
+      onSaved?.();
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : "儲存失敗。");
     } finally {
@@ -219,14 +304,7 @@ export default function CameraReceipt({ displayName }: { displayName: string }) 
   }
 
   const canSave =
-    Boolean(
-      photo &&
-        reference &&
-        userName.trim() &&
-        receiptDate &&
-        category.trim() &&
-        amount.trim()
-    ) &&
+    Boolean(photo && reference && userName.trim() && receiptDate && category.trim() && amount.trim()) &&
     !referenceLoading &&
     !saving;
 
@@ -235,28 +313,67 @@ export default function CameraReceipt({ displayName }: { displayName: string }) 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold">1. 拍攝收據</h2>
-          <p className="text-sm text-slate-500">用手機相機拍照，填寫資料後儲存到 Google Drive</p>
+          <p className="text-sm text-slate-500">用相機拍照或從裝置選擇圖片，填寫資料後儲存到伺服器</p>
         </div>
-        <button
-          type="button"
-          onClick={() => cameraRef.current?.click()}
-          className="rounded-lg bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800"
-        >
-          拍攝收據
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => setCameraOpen(true)}
+            className="rounded-lg bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800"
+          >
+            拍攝收據
+          </button>
+          <button
+            type="button"
+            onClick={() => uploadRef.current?.click()}
+            className="rounded-lg border border-slate-300 px-4 py-3 text-sm font-medium text-slate-800 transition hover:bg-slate-50"
+          >
+            上傳收據
+          </button>
+        </div>
       </div>
 
       <input
-        ref={cameraRef}
+        ref={uploadRef}
         type="file"
         accept="image/*"
-        capture="environment"
         className="sr-only"
-        onChange={handlePhoto}
+        onChange={handleUpload}
       />
 
       {cameraError && (
         <p className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{cameraError}</p>
+      )}
+
+      {cameraOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/70 p-4 sm:items-center">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-900">拍攝收據</h3>
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="mt-4 aspect-[3/4] w-full rounded-lg bg-slate-900 object-contain sm:aspect-video"
+            />
+            <div className="mt-4 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={closeCamera}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={() => void capturePhoto()}
+                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+              >
+                拍照
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {open && (
@@ -274,7 +391,7 @@ export default function CameraReceipt({ displayName }: { displayName: string }) 
               <img
                 src={photoUrl}
                 alt="收據相片"
-                className="mt-4 max-h-48 w-full rounded-lg object-contain bg-slate-100"
+                className="mt-4 max-h-48 w-full rounded-lg bg-slate-100 object-contain"
               />
             )}
 
@@ -284,18 +401,9 @@ export default function CameraReceipt({ displayName }: { displayName: string }) 
                   已儲存為 {saved.fileName}
                 </p>
                 <p className="text-sm text-slate-600">
-                  參考編號 <span className="font-mono text-base font-semibold text-slate-900">{saved.reference}</span>
+                  參考編號{" "}
+                  <span className="font-mono text-base font-semibold text-slate-900">{saved.reference}</span>
                 </p>
-                {saved.webViewLink && (
-                  <a
-                    href={saved.webViewLink}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-block text-sm font-medium text-emerald-700 underline"
-                  >
-                    在 Google Drive 開啟
-                  </a>
-                )}
                 <div className="flex justify-end">
                   <button
                     type="button"

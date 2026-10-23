@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "收據資料讀取 | Receipts OCR",
-  description: "拍攝收據並儲存至 Google Drive，或由圖片讀取收據資料",
+  description: "拍攝或上傳收據，並按參考編號儲存",
 };
 
 export default function RootLayout({

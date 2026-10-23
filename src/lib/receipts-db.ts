@@ -50,3 +50,30 @@ export function insertReceipt(input: Omit<ReceiptRow, "createDate" | "remarks">)
 export function deleteReceipt(referenceNo: string): void {
   getDb().prepare(`DELETE FROM receipts WHERE reference_no = ?`).run(referenceNo);
 }
+
+export function listReceipts(): ReceiptRow[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT create_date, reference_no, user_name, receipt_date, category, amount, remarks
+       FROM receipts
+       ORDER BY create_date DESC, reference_no DESC`
+    )
+    .all() as Array<{
+    create_date: string;
+    reference_no: string;
+    user_name: string;
+    receipt_date: string;
+    category: string;
+    amount: string;
+    remarks: string;
+  }>;
+  return rows.map((row) => ({
+    createDate: row.create_date,
+    referenceNo: row.reference_no,
+    userName: row.user_name,
+    receiptDate: row.receipt_date,
+    category: row.category,
+    amount: row.amount,
+    remarks: row.remarks,
+  }));
+}

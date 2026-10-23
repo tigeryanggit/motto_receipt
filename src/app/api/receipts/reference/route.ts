@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listMonthFileNames, ReceiptSaveError } from "@/lib/drive";
+import { ReceiptSaveError, storedFileNames, withReceiptLock } from "@/lib/receipt-files";
 import { nextReference, parseReceiptDate } from "@/lib/receipt-ref";
 import { storedReferenceFileNames } from "@/lib/receipts-db";
 import { getSessionUser } from "@/lib/session";
@@ -18,19 +18,21 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const names = [
-      ...(await listMonthFileNames(parsed.monthKey)),
-      ...storedReferenceFileNames(parsed.monthKey),
-    ];
-    return NextResponse.json({ reference: nextReference(parsed.monthKey, names) });
+    const reference = await withReceiptLock(async () =>
+      nextReference(parsed.monthKey, [
+        ...storedFileNames(parsed.monthKey),
+        ...storedReferenceFileNames(parsed.monthKey),
+      ])
+    );
+    return NextResponse.json({ reference });
   } catch (error) {
     if (error instanceof ReceiptSaveError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
+    if (error instanceof Error && error.message === "本月參考編號已滿。") {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     console.error("Reference allocation failed", error);
-    return NextResponse.json(
-      { error: "暫時無法編配參考編號，請稍後再試。" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "暫時無法編配參考編號，請稍後再試。" }, { status: 500 });
   }
 }

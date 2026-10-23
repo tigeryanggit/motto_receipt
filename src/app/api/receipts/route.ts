@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listMonthFileNames, ReceiptSaveError, uploadReceiptPhoto, withDriveLock } from "@/lib/drive";
-import { parseAmount, parseReceiptDate, nextReference } from "@/lib/receipt-ref";
-import { deleteReceipt, insertReceipt, storedReferenceFileNames } from "@/lib/receipts-db";
+import {
+  ReceiptSaveError,
+  removeReceiptFile,
+  storedFileNames,
+  withReceiptLock,
+  writeReceiptFile,
+} from "@/lib/receipt-files";
+import { nextReference, parseAmount, parseReceiptDate } from "@/lib/receipt-ref";
+import { insertReceipt, listReceipts, storedReferenceFileNames } from "@/lib/receipts-db";
 import { getSessionUser } from "@/lib/session";
 
 export const runtime = "nodejs";
@@ -11,6 +17,13 @@ const MAX_PHOTO_BYTES = 12 * 1024 * 1024;
 
 function isJpeg(buffer: Buffer): boolean {
   return buffer.length > 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+}
+
+export async function GET() {
+  if (!(await getSessionUser())) {
+    return NextResponse.json({ error: "請先登入。" }, { status: 401 });
+  }
+  return NextResponse.json({ receipts: listReceipts() });
 }
 
 export async function POST(request: NextRequest) {
@@ -41,7 +54,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "請輸入有效金額。" }, { status: 400 });
     }
     if (!(photo instanceof File)) {
-      return NextResponse.json({ error: "請先拍攝收據相片。" }, { status: 400 });
+      return NextResponse.json({ error: "請先拍攝或上傳收據相片。" }, { status: 400 });
     }
 
     const jpeg = Buffer.from(await photo.arrayBuffer());
@@ -49,29 +62,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "相片必須是 JPEG，而且不可超過 12MB。" }, { status: 400 });
     }
 
-    const saved = await withDriveLock(async () => {
+    const saved = await withReceiptLock(async () => {
       const reference = nextReference(parsedDate.monthKey, [
-        ...(await listMonthFileNames(parsedDate.monthKey)),
+        ...storedFileNames(parsedDate.monthKey),
         ...storedReferenceFileNames(parsedDate.monthKey),
       ]);
-      insertReceipt({
-        referenceNo: reference,
-        userName,
-        receiptDate: parsedDate.iso,
-        category,
-        amount,
-      });
+      writeReceiptFile(reference, jpeg);
       try {
-        return await uploadReceiptPhoto({
-          reference,
-          jpeg,
+        const row = insertReceipt({
+          referenceNo: reference,
           userName,
           receiptDate: parsedDate.iso,
           category,
           amount,
         });
+        return {
+          reference,
+          fileName: `${reference}.jpg`,
+          createDate: row.createDate,
+        };
       } catch (error) {
-        deleteReceipt(reference);
+        removeReceiptFile(reference);
         throw error;
       }
     });
@@ -80,6 +91,9 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof ReceiptSaveError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    if (error instanceof Error && error.message === "本月參考編號已滿。") {
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
     console.error("Receipt upload failed", error);
     return NextResponse.json({ error: "儲存收據時發生錯誤，請稍後再試。" }, { status: 500 });
