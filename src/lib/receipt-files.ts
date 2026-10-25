@@ -1,5 +1,6 @@
-import { mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { getReceiptFolder } from "@/lib/settings";
 
 const REFERENCE_PATTERN = /^\d{6}-\d{4}$/;
 
@@ -15,7 +16,7 @@ export class ReceiptSaveError extends Error {
 let lockTail: Promise<void> = Promise.resolve();
 
 export function receiptsDirectory(): string {
-  return process.env.RECEIPTS_DIR || path.join(process.cwd(), "data", "Receipts");
+  return getReceiptFolder();
 }
 
 export function ensureReceiptsDirectory(): string {
@@ -55,6 +56,10 @@ export function removeReceiptFile(reference: string): void {
       throw error;
     }
   }
+}
+
+export function receiptFileExists(reference: string): boolean {
+  return existsSync(receiptFilePath(reference));
 }
 
 export function readReceiptFile(reference: string): Buffer | null {

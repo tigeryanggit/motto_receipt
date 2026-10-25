@@ -35,6 +35,16 @@ export function getDb(): Database.Database {
       amount TEXT NOT NULL,
       remarks TEXT NOT NULL DEFAULT ''
     );
+
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS categories (
+      name TEXT PRIMARY KEY COLLATE NOCASE,
+      created_at TEXT NOT NULL
+    );
   `);
   importLegacyUsers(db, path.dirname(file));
   database = db;

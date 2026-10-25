@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import AccountManager from "@/components/AccountManager";
-import AppHeader from "@/components/AppHeader";
 import { getSessionUser } from "@/lib/session";
 import { listPublicUsers } from "@/lib/users";
 
@@ -15,10 +14,5 @@ export default async function AccountsPage() {
     redirect("/");
   }
 
-  return (
-    <>
-      <AppHeader user={user} />
-      <AccountManager initialUsers={await listPublicUsers()} />
-    </>
-  );
+  return <AccountManager initialUsers={await listPublicUsers()} />;
 }

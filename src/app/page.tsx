@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import AppHeader from "@/components/AppHeader";
 import ReceiptProcessor from "@/components/ReceiptProcessor";
 import { getSessionUser } from "@/lib/session";
 
@@ -11,10 +10,5 @@ export default async function HomePage() {
     redirect("/login");
   }
 
-  return (
-    <>
-      <AppHeader user={user} />
-      <ReceiptProcessor displayName={user.displayName} />
-    </>
-  );
+  return <ReceiptProcessor userId={user.id} displayName={user.displayName} canDelete={user.role === "admin"} />;
 }

@@ -14,16 +14,43 @@ type ReceiptItem = {
 
 type SortKey = "name" | "receiptDate" | "createDate";
 
-export default function ReceiptLibrary({ refreshKey }: { refreshKey: number }) {
+function currentMonthRange(): { from: string; to: string } {
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Hong_Kong",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  const [year, month] = today.split("-").map(Number);
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const monthText = String(month).padStart(2, "0");
+  return {
+    from: `${year}-${monthText}-01`,
+    to: `${year}-${monthText}-${String(lastDay).padStart(2, "0")}`,
+  };
+}
+
+export default function ReceiptLibrary({
+  refreshKey,
+  canDelete,
+}: {
+  refreshKey: number;
+  canDelete: boolean;
+}) {
+  const range = currentMonthRange();
   const [receipts, setReceipts] = useState<ReceiptItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [dateFrom, setDateFrom] = useState(range.from);
+  const [dateTo, setDateTo] = useState(range.to);
   const [sortKey, setSortKey] = useState<SortKey>("createDate");
   const [ascending, setAscending] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [preview, setPreview] = useState<ReceiptItem | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -52,10 +79,18 @@ export default function ReceiptLibrary({ refreshKey }: { refreshKey: number }) {
         }
       });
     return () => controller.abort();
-  }, [refreshKey]);
+  }, [refreshKey, reloadKey]);
 
   const sorted = useMemo(() => {
-    const copy = [...receipts];
+    const copy = receipts.filter((item) => {
+      if (dateFrom && item.receiptDate < dateFrom) {
+        return false;
+      }
+      if (dateTo && item.receiptDate > dateTo) {
+        return false;
+      }
+      return true;
+    });
     const value = (item: ReceiptItem) => {
       if (sortKey === "name") {
         return item.referenceNo;
@@ -70,12 +105,17 @@ export default function ReceiptLibrary({ refreshKey }: { refreshKey: number }) {
       return ascending ? compared : -compared;
     });
     return copy;
-  }, [receipts, sortKey, ascending]);
+  }, [receipts, dateFrom, dateTo, sortKey, ascending]);
 
-  const allSelected = sorted.length > 0 && sorted.every((item) => selected.includes(item.referenceNo));
+  const rangeInvalid = Boolean(dateFrom && dateTo && dateFrom > dateTo);
+  const visible = rangeInvalid ? [] : sorted;
+  const visibleSelected = selected.filter((reference) =>
+    visible.some((item) => item.referenceNo === reference)
+  );
+  const allSelected = visible.length > 0 && visible.every((item) => visibleSelected.includes(item.referenceNo));
 
   function toggleAll() {
-    setSelected(allSelected ? [] : sorted.map((item) => item.referenceNo));
+    setSelected(allSelected ? [] : visible.map((item) => item.referenceNo));
   }
 
   function toggleOne(reference: string) {
@@ -85,7 +125,7 @@ export default function ReceiptLibrary({ refreshKey }: { refreshKey: number }) {
   }
 
   async function downloadSelected() {
-    if (selected.length === 0 || downloading) {
+    if (visibleSelected.length === 0 || downloading) {
       return;
     }
     setDownloading(true);
@@ -94,7 +134,7 @@ export default function ReceiptLibrary({ refreshKey }: { refreshKey: number }) {
       const response = await fetch("/api/receipts/download", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ references: selected }),
+        body: JSON.stringify({ references: visibleSelected }),
       });
       if (!response.ok) {
         const payload = (await response.json()) as { error?: string };
@@ -114,14 +154,62 @@ export default function ReceiptLibrary({ refreshKey }: { refreshKey: number }) {
     }
   }
 
+  async function deleteSelected() {
+    if (!canDelete || visibleSelected.length === 0 || deleting) {
+      return;
+    }
+    const confirmed = window.confirm(`確定刪除所選的 ${visibleSelected.length} 張收據？相片和資料都會移除。`);
+    if (!confirmed) {
+      return;
+    }
+    setDeleting(true);
+    setDownloadError("");
+    try {
+      const response = await fetch("/api/receipts/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ references: visibleSelected }),
+      });
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
+        throw new Error(payload.error ?? "刪除失敗。");
+      }
+      setSelected([]);
+      setPreview(null);
+      setReloadKey((current) => current + 1);
+    } catch (deleteFailure) {
+      setDownloadError(deleteFailure instanceof Error ? deleteFailure.message : "刪除失敗。");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 className="text-lg font-semibold">2. 收據檔案</h2>
-          <p className="text-sm text-slate-500">按檔案名稱、收據日期或建立日期排列，並可預覽或下載</p>
+          <p className="text-sm text-slate-500">按收據日期篩選，並可按檔案名稱、收據日期或建立日期排列、預覽或下載</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <label className="text-sm text-slate-600">
+            日期由
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(event) => setDateFrom(event.target.value)}
+              className="ml-2 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="text-sm text-slate-600">
+            日期至
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(event) => setDateTo(event.target.value)}
+              className="ml-2 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+          </label>
           <label className="text-sm text-slate-600">
             排序
             <select
@@ -144,11 +232,21 @@ export default function ReceiptLibrary({ refreshKey }: { refreshKey: number }) {
           <button
             type="button"
             onClick={() => void downloadSelected()}
-            disabled={selected.length === 0 || downloading}
+            disabled={visibleSelected.length === 0 || downloading}
             className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-emerald-300"
           >
-            {downloading ? "下載中..." : `下載 ZIP${selected.length > 0 ? `（${selected.length}）` : ""}`}
+            {downloading ? "下載中..." : `下載 ZIP${visibleSelected.length > 0 ? `（${visibleSelected.length}）` : ""}`}
           </button>
+          {canDelete && (
+            <button
+              type="button"
+              onClick={() => void deleteSelected()}
+              disabled={visibleSelected.length === 0 || deleting}
+              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-red-200"
+            >
+              {deleting ? "刪除中..." : `刪除${visibleSelected.length > 0 ? `（${visibleSelected.length}）` : ""}`}
+            </button>
+          )}
         </div>
       </div>
 
@@ -158,8 +256,12 @@ export default function ReceiptLibrary({ refreshKey }: { refreshKey: number }) {
 
       {loading ? (
         <p className="mt-4 text-sm text-slate-500">正在讀取收據...</p>
-      ) : sorted.length === 0 ? (
+      ) : rangeInvalid ? (
+        <p className="mt-4 text-sm text-slate-500">日期由不可晚於日期至。</p>
+      ) : receipts.length === 0 ? (
         <p className="mt-4 text-sm text-slate-500">尚未儲存任何收據。</p>
+      ) : visible.length === 0 ? (
+        <p className="mt-4 text-sm text-slate-500">此日期範圍內沒有收據。</p>
       ) : (
         <div className="mt-4 overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
@@ -177,13 +279,13 @@ export default function ReceiptLibrary({ refreshKey }: { refreshKey: number }) {
                 <th className="px-3 py-3 text-left font-semibold text-slate-700">收據日期</th>
                 <th className="px-3 py-3 text-left font-semibold text-slate-700">建立日期</th>
                 <th className="px-3 py-3 text-left font-semibold text-slate-700">姓名</th>
-                <th className="px-3 py-3 text-left font-semibold text-slate-700">類別</th>
+                <th className="px-3 py-3 text-left font-semibold text-slate-700">描述</th>
                 <th className="px-3 py-3 text-left font-semibold text-slate-700">金額</th>
                 <th className="px-3 py-3 text-left font-semibold text-slate-700">預覽</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {sorted.map((item) => (
+              {visible.map((item) => (
                 <tr key={item.referenceNo} className="hover:bg-slate-50">
                   <td className="px-3 py-3">
                     <input
@@ -197,7 +299,7 @@ export default function ReceiptLibrary({ refreshKey }: { refreshKey: number }) {
                   <td className="px-3 py-3 text-slate-700">{item.receiptDate}</td>
                   <td className="px-3 py-3 text-slate-700">{item.createDate}</td>
                   <td className="px-3 py-3 text-slate-700">{item.userName}</td>
-                  <td className="px-3 py-3 text-slate-700">{item.category}</td>
+                  <td className="px-3 py-3 text-slate-700">{item.remarks}</td>
                   <td className="px-3 py-3 text-slate-900">{item.amount}</td>
                   <td className="px-3 py-3">
                     <button
@@ -237,9 +339,9 @@ export default function ReceiptLibrary({ refreshKey }: { refreshKey: number }) {
                 <dt className="text-slate-500">姓名</dt>
                 <dd className="font-medium text-slate-900">{preview.userName}</dd>
               </div>
-              <div>
-                <dt className="text-slate-500">類別</dt>
-                <dd className="font-medium text-slate-900">{preview.category}</dd>
+              <div className="col-span-2">
+                <dt className="text-slate-500">描述</dt>
+                <dd className="font-medium text-slate-900">{preview.remarks}</dd>
               </div>
               <div>
                 <dt className="text-slate-500">金額</dt>

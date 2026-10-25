@@ -73,6 +73,19 @@ export async function countUsers(): Promise<number> {
   return row.count;
 }
 
+export async function listActiveUserChoices(): Promise<Array<{ id: string; displayName: string }>> {
+  const rows = getDb()
+    .prepare(`SELECT id, display_name FROM users WHERE active = 1`)
+    .all() as Array<{ id: string; display_name: string }>;
+  return rows
+    .map((row) => ({ id: row.id, displayName: row.display_name }))
+    .sort(
+      (left, right) =>
+        left.displayName.localeCompare(right.displayName, "zh-Hant", { sensitivity: "base" }) ||
+        left.displayName.localeCompare(right.displayName)
+    );
+}
+
 export async function listPublicUsers(): Promise<PublicUser[]> {
   const rows = getDb()
     .prepare(
@@ -110,6 +123,27 @@ export async function authenticate(username: string, password: string): Promise<
     throw new UserStoreError("此帳戶已停用。", 403);
   }
   return toPublic(user);
+}
+
+export async function changeOwnPassword(
+  userId: string,
+  currentPassword: string,
+  newPassword: string
+): Promise<void> {
+  const user = getDb()
+    .prepare(`SELECT id, password_hash FROM users WHERE id = ? AND active = 1`)
+    .get(userId) as { id: string; password_hash: string } | undefined;
+  if (!user || !(await verifyPassword(currentPassword, user.password_hash))) {
+    throw new UserStoreError("Current password is incorrect.", 401);
+  }
+  if (newPassword.length < 6) {
+    throw new UserStoreError("Password must be at least 6 characters.");
+  }
+  if (await verifyPassword(newPassword, user.password_hash)) {
+    throw new UserStoreError("New password must be different from the current password.");
+  }
+  const passwordHash = await hashPassword(newPassword);
+  getDb().prepare(`UPDATE users SET password_hash = ? WHERE id = ?`).run(passwordHash, userId);
 }
 
 export async function createFirstAdmin(input: {

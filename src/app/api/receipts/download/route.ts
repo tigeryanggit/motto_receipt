@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isReceiptReference, readReceiptFile } from "@/lib/receipt-files";
+import { getReceipt, receiptBelongsTo } from "@/lib/receipts-db";
 import { getSessionUser } from "@/lib/session";
 import { zipStore } from "@/lib/zip";
 
@@ -9,7 +10,8 @@ export const dynamic = "force-dynamic";
 const MAX_FILES = 200;
 
 export async function POST(request: NextRequest) {
-  if (!(await getSessionUser())) {
+  const user = await getSessionUser();
+  if (!user) {
     return NextResponse.json({ error: "請先登入。" }, { status: 401 });
   }
 
@@ -26,6 +28,13 @@ export async function POST(request: NextRequest) {
   }
   if (unique.some((reference) => !isReceiptReference(reference))) {
     return NextResponse.json({ error: "參考編號不正確。" }, { status: 400 });
+  }
+
+  if (unique.some((reference) => {
+    const receipt = getReceipt(reference);
+    return !receipt || !receiptBelongsTo(receipt, user);
+  })) {
+    return NextResponse.json({ error: "有收據檔案找不到，請重新整理後再試。" }, { status: 404 });
   }
 
   const files = unique.map((reference) => {

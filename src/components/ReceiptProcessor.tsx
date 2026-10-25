@@ -4,7 +4,15 @@ import { useState } from "react";
 import CameraReceipt from "@/components/CameraReceipt";
 import ReceiptLibrary from "@/components/ReceiptLibrary";
 
-export default function ReceiptProcessor({ displayName }: { displayName: string }) {
+export default function ReceiptProcessor({
+  userId,
+  displayName,
+  canDelete,
+}: {
+  userId: string;
+  displayName: string;
+  canDelete: boolean;
+}) {
   const [refreshKey, setRefreshKey] = useState(0);
 
   return (
@@ -17,8 +25,12 @@ export default function ReceiptProcessor({ displayName }: { displayName: string 
         </p>
       </header>
 
-      <CameraReceipt displayName={displayName} onSaved={() => setRefreshKey((current) => current + 1)} />
-      <ReceiptLibrary refreshKey={refreshKey} />
+      <CameraReceipt
+        userId={userId}
+        displayName={displayName}
+        onSaved={() => setRefreshKey((current) => current + 1)}
+      />
+      <ReceiptLibrary refreshKey={refreshKey} canDelete={canDelete} />
     </main>
   );
 }

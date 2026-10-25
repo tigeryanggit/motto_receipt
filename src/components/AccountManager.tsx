@@ -71,36 +71,36 @@ export default function AccountManager({
   return (
     <main className="mx-auto flex min-h-screen max-w-5xl flex-col gap-8 px-6 py-12">
       <header>
-        <h1 className="text-3xl font-bold text-slate-900">帳戶管理</h1>
-        <p className="mt-2 text-slate-600">只有這裡建立的帳戶可以登入收據頁面。所有欄位均須填寫。</p>
+        <h1 className="text-3xl font-bold text-slate-900">Account Management</h1>
+        <p className="mt-2 text-slate-600">Create a user who can sign in. Every field is required.</p>
       </header>
 
       <form onSubmit={createAccount} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold">新增帳戶</h2>
+        <h2 className="text-lg font-semibold">Create User</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <label className="block text-sm font-medium text-slate-700">
-            姓名
+            Display name
             <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} required maxLength={80} className={fieldClass} />
           </label>
           <label className="block text-sm font-medium text-slate-700">
-            登入名稱
+            Login name
             <input value={username} onChange={(event) => setUsername(event.target.value)} required autoComplete="off" className={fieldClass} />
           </label>
           <label className="block text-sm font-medium text-slate-700">
-            密碼
+            Password
             <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={6} autoComplete="new-password" className={fieldClass} />
           </label>
           <label className="block text-sm font-medium text-slate-700">
-            角色
+            Role
             <select value={role} onChange={(event) => setRole(event.target.value as Role)} className={fieldClass}>
-              <option value="user">使用者</option>
-              <option value="admin">管理員</option>
+              <option value="user">general user</option>
+              <option value="admin">admin</option>
             </select>
           </label>
         </div>
         {error && <p className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
         <button type="submit" disabled={pending} className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:bg-slate-400">
-          {pending ? "建立中..." : "新增帳戶"}
+          {pending ? "Creating..." : "Create User"}
         </button>
       </form>
 
@@ -136,7 +136,7 @@ function UserRow({
     <form onSubmit={handleSave} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block text-sm font-medium text-slate-700">
-          姓名
+          Display name
           <input
             value={draft.displayName}
             onChange={(event) => setDraft({ ...draft, displayName: event.target.value })}
@@ -146,30 +146,30 @@ function UserRow({
           />
         </label>
         <label className="block text-sm font-medium text-slate-700">
-          登入名稱
+          Login name
           <input value={user.username} readOnly className={`${fieldClass} bg-slate-50`} />
         </label>
         <label className="block text-sm font-medium text-slate-700">
-          角色
-          <select
-            value={draft.role}
-            onChange={(event) => setDraft({ ...draft, role: event.target.value as Role })}
-            className={fieldClass}
-          >
-            <option value="user">使用者</option>
-            <option value="admin">管理員</option>
-          </select>
+            Role
+            <select
+              value={draft.role}
+              onChange={(event) => setDraft({ ...draft, role: event.target.value as Role })}
+              className={fieldClass}
+            >
+              <option value="user">general user</option>
+              <option value="admin">admin</option>
+            </select>
         </label>
         <label className="block text-sm font-medium text-slate-700">
-          新密碼
-          <input
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            placeholder="留空則不更改"
-            autoComplete="new-password"
-            className={fieldClass}
-          />
+            Password
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="Leave blank to keep the current password"
+              autoComplete="new-password"
+              className={fieldClass}
+            />
         </label>
       </div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
@@ -179,10 +179,10 @@ function UserRow({
             checked={draft.active}
             onChange={(event) => setDraft({ ...draft, active: event.target.checked })}
           />
-          允許登入
+          Active
         </label>
         <button type="submit" disabled={pending} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:bg-emerald-300">
-          {pending ? "儲存中..." : "儲存"}
+          {pending ? "Saving..." : "Save"}
         </button>
       </div>
     </form>

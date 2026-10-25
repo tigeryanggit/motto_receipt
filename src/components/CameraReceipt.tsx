@@ -7,42 +7,92 @@ type SavedReceipt = {
   fileName: string;
 };
 
+const MAX_PHOTO_BYTES = 200 * 1024;
+
+function encodeJpeg(source: CanvasImageSource, width: number, height: number, quality: number): Promise<Blob> {
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(width));
+  canvas.height = Math.max(1, Math.round(height));
+  const context = canvas.getContext("2d");
+  if (!context) {
+    return Promise.reject(new Error("無法處理相片。"));
+  }
+  context.drawImage(source, 0, 0, canvas.width, canvas.height);
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error("無法把相片轉成 JPEG。"))),
+      "image/jpeg",
+      quality
+    );
+  });
+}
+
+async function compressPhoto(source: CanvasImageSource, sourceWidth: number, sourceHeight: number): Promise<Blob> {
+  let width = sourceWidth;
+  let height = sourceHeight;
+  const longest = Math.max(width, height);
+  if (longest > 1600) {
+    const scale = 1600 / longest;
+    width *= scale;
+    height *= scale;
+  }
+
+  let quality = 0.8;
+  let blob = await encodeJpeg(source, width, height, quality);
+  for (let attempt = 0; blob.size >= MAX_PHOTO_BYTES && attempt < 24; attempt += 1) {
+    if (quality > 0.5) {
+      quality = Math.round((quality - 0.1) * 10) / 10;
+    } else if (Math.max(width, height) > 480) {
+      width *= 0.8;
+      height *= 0.8;
+      quality = 0.7;
+    } else {
+      quality = Math.max(0.3, Math.round((quality - 0.1) * 10) / 10);
+    }
+    blob = await encodeJpeg(source, width, height, quality);
+  }
+  if (blob.size >= MAX_PHOTO_BYTES) {
+    throw new Error("無法把相片壓縮至 200KB 以下。");
+  }
+  return blob;
+}
+
 async function toJpeg(file: File): Promise<Blob> {
   const bitmap = await createImageBitmap(file);
   try {
-    const maxEdge = 2000;
-    const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-    const context = canvas.getContext("2d");
-    if (!context) {
-      throw new Error("無法處理相片。");
-    }
-    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise<Blob | null>((resolve) => {
-      canvas.toBlob(resolve, "image/jpeg", 0.85);
-    });
-    if (!blob) {
-      throw new Error("無法把相片轉成 JPEG。");
-    }
-    return blob;
+    return await compressPhoto(bitmap, bitmap.width, bitmap.height);
   } finally {
     bitmap.close();
   }
 }
 
+type UserChoice = {
+  id: string;
+  displayName: string;
+};
+
+function todayInHongKong(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Hong_Kong",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
 export default function CameraReceipt({
+  userId,
   displayName,
   onSaved,
 }: {
+  userId: string;
   displayName: string;
   onSaved?: () => void;
 }) {
   const uploadRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const nameRef = useRef<HTMLInputElement>(null);
+  const nameRef = useRef<HTMLSelectElement>(null);
   const previewUrl = useRef("");
   const dateEdited = useRef(false);
   const amountEdited = useRef(false);
@@ -52,8 +102,10 @@ export default function CameraReceipt({
   const [photo, setPhoto] = useState<Blob | null>(null);
   const [photoUrl, setPhotoUrl] = useState("");
   const [userName, setUserName] = useState(displayName);
-  const [receiptDate, setReceiptDate] = useState("");
-  const [category, setCategory] = useState("");
+  const [selectedUserId, setSelectedUserId] = useState(userId);
+  const [userChoices, setUserChoices] = useState<UserChoice[]>([]);
+  const [receiptDate, setReceiptDate] = useState(todayInHongKong);
+  const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [ocrMessage, setOcrMessage] = useState("");
   const [reference, setReference] = useState("");
@@ -119,7 +171,20 @@ export default function CameraReceipt({
       return;
     }
     nameRef.current?.focus();
-  }, [open, saved]);
+    const controller = new AbortController();
+    fetch("/api/users/choices", { cache: "no-store", signal: controller.signal })
+      .then(async (response) => {
+        const payload = (await response.json()) as { users?: UserChoice[] };
+        if (response.ok && payload.users) {
+          setUserChoices(payload.users);
+          setSelectedUserId((current) =>
+            payload.users?.some((choice) => choice.id === current) ? current : userId
+          );
+        }
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [open, saved, userId]);
 
   useEffect(() => {
     if (!open || saved || !/^\d{4}-\d{2}-\d{2}$/.test(receiptDate)) {
@@ -201,9 +266,10 @@ export default function CameraReceipt({
     setPhotoUrl(url);
     dateEdited.current = false;
     amountEdited.current = false;
+    setSelectedUserId(userId);
     setUserName(displayName);
-    setReceiptDate("");
-    setCategory("");
+    setReceiptDate(todayInHongKong());
+    setDescription("");
     setAmount("");
     setReference("");
     setReferenceError("");
@@ -236,26 +302,13 @@ export default function CameraReceipt({
       setCameraError("相機尚未準備好，請再試一次。");
       return;
     }
-    const maxEdge = 2000;
-    const scale = Math.min(1, maxEdge / Math.max(video.videoWidth, video.videoHeight));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
-    canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
-    const context = canvas.getContext("2d");
-    if (!context) {
-      setCameraError("無法拍攝相片。");
-      return;
+    try {
+      const blob = await compressPhoto(video, video.videoWidth, video.videoHeight);
+      setCameraOpen(false);
+      showPhoto(blob);
+    } catch (error) {
+      setCameraError(error instanceof Error ? error.message : "無法拍攝相片。");
     }
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise<Blob | null>((resolve) => {
-      canvas.toBlob(resolve, "image/jpeg", 0.85);
-    });
-    if (!blob) {
-      setCameraError("無法拍攝相片。");
-      return;
-    }
-    setCameraOpen(false);
-    showPhoto(blob);
   }
 
   async function handleUpload(event: React.ChangeEvent<HTMLInputElement>) {
@@ -281,9 +334,11 @@ export default function CameraReceipt({
     setSaving(true);
     setSaveError("");
     const formData = new FormData();
-    formData.set("userName", userName.trim());
+    const chosen = userChoices.find((choice) => choice.id === selectedUserId);
+    formData.set("userId", selectedUserId);
+    formData.set("userName", chosen?.displayName ?? userName);
     formData.set("receiptDate", receiptDate);
-    formData.set("category", category.trim());
+    formData.set("description", description.trim());
     formData.set("amount", amount.trim());
     formData.set("photo", photo, `${reference}.jpg`);
 
@@ -304,7 +359,7 @@ export default function CameraReceipt({
   }
 
   const canSave =
-    Boolean(photo && reference && userName.trim() && receiptDate && category.trim() && amount.trim()) &&
+    Boolean(photo && reference && selectedUserId && receiptDate && description.trim() && amount.trim()) &&
     !referenceLoading &&
     !saving;
 
@@ -422,16 +477,27 @@ export default function CameraReceipt({
                 )}
                 <label className="block text-sm font-medium text-slate-700">
                   姓名
-                  <input
+                  <select
                     ref={nameRef}
-                    value={userName}
-                    onChange={(event) => setUserName(event.target.value)}
-                    maxLength={80}
+                    value={selectedUserId}
+                    onChange={(event) => {
+                      const nextId = event.target.value;
+                      setSelectedUserId(nextId);
+                      const chosen = userChoices.find((choice) => choice.id === nextId);
+                      setUserName(chosen?.displayName ?? "");
+                    }}
                     required
                     className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-base"
-                  />
+                  >
+                    {userChoices.length === 0 && <option value={userId}>{displayName}</option>}
+                    {userChoices.map((choice) => (
+                      <option key={choice.id} value={choice.id}>
+                        {choice.displayName}
+                      </option>
+                    ))}
+                  </select>
                 </label>
-                <p className="-mt-2 text-xs text-slate-500">已按登入使用者填入，可以修改。</p>
+                <p className="-mt-2 text-xs text-slate-500">預設為登入使用者，可以改選其他使用者。</p>
                 <label className="block text-sm font-medium text-slate-700">
                   收據日期
                   <input
@@ -446,12 +512,12 @@ export default function CameraReceipt({
                   />
                 </label>
                 <label className="block text-sm font-medium text-slate-700">
-                  類別
+                  描述
                   <input
-                    value={category}
-                    onChange={(event) => setCategory(event.target.value)}
-                    maxLength={40}
+                    value={description}
+                    onChange={(event) => setDescription(event.target.value)}
                     required
+                    maxLength={200}
                     className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-base"
                   />
                 </label>
