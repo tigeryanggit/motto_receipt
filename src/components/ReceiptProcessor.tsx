@@ -18,8 +18,7 @@ export default function ReceiptProcessor({
   return (
     <main className="mx-auto flex min-h-screen max-w-5xl flex-col gap-8 px-6 py-12">
       <header className="space-y-3">
-        <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">Motto Education</p>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">收據資料自動讀取</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900">上傳收據</h1>
         <p className="max-w-2xl text-slate-600">
           用相機拍攝收據，或從手機及電腦選擇圖片。相片會按參考編號儲存到伺服器，並可在下方預覽及下載。
         </p>

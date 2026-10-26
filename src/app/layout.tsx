@@ -4,7 +4,7 @@ import { getSessionUser } from "@/lib/session";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Receipts Upload",
+  title: "上傳收據",
   description: "拍攝或上傳收據，並按參考編號儲存",
 };
 

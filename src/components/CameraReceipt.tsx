@@ -80,6 +80,24 @@ function todayInHongKong(): string {
   }).format(new Date());
 }
 
+function CameraIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-20 w-20" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 8h3.2L8.6 5.5h6.8L16.8 8H20a2 2 0 0 1 2 2v8.5a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z" />
+      <circle cx="12" cy="14" r="3.25" />
+    </svg>
+  );
+}
+
+function UploadIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-20 w-20" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 16V6m0 0 4 4m-4-4-4 4" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 18.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1.5" />
+    </svg>
+  );
+}
+
 export default function CameraReceipt({
   userId,
   displayName,
@@ -364,28 +382,27 @@ export default function CameraReceipt({
     !saving;
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">1. 拍攝收據</h2>
-          <p className="text-sm text-slate-500">用相機拍照或從裝置選擇圖片，填寫資料後儲存到伺服器</p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={() => setCameraOpen(true)}
-            className="rounded-lg bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800"
-          >
-            拍攝收據
-          </button>
-          <button
-            type="button"
-            onClick={() => uploadRef.current?.click()}
-            className="rounded-lg border border-slate-300 px-4 py-3 text-sm font-medium text-slate-800 transition hover:bg-slate-50"
-          >
-            上傳收據
-          </button>
-        </div>
+    <section className="rounded-2xl border-2 border-[#001f3f] bg-[#ECF3FF] p-6 shadow-sm">
+      <div>
+        <h2 className="text-lg font-semibold">拍攝或上傳</h2>
+      </div>
+      <div className="mt-6 grid grid-cols-2 gap-4">
+        <button
+          type="button"
+          onClick={() => setCameraOpen(true)}
+          className="flex flex-col items-center justify-center gap-3 rounded-2xl bg-[#001f3f] px-4 py-8 text-base font-medium text-white transition hover:bg-[#001433]"
+        >
+          <CameraIcon />
+          拍攝收據
+        </button>
+        <button
+          type="button"
+          onClick={() => uploadRef.current?.click()}
+          className="flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-[#001f3f] bg-white px-4 py-8 text-base font-medium text-[#001f3f] transition hover:bg-white/70"
+        >
+          <UploadIcon />
+          上傳收據
+        </button>
       </div>
 
       <input

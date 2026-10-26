@@ -39,17 +39,17 @@ export default function Navbar({ user }: { user: NavbarUser }) {
   const childClass = "block w-full py-2 pl-8 pr-4 text-left text-sm text-slate-600 hover:bg-slate-50";
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-200 bg-white">
+    <header className="sticky top-0 z-40 border-b border-[#001433] bg-[#001f3f]">
       <div ref={panelRef} className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4 sm:px-6">
-        <Link href={user ? "/" : "/login"} className="text-lg font-semibold tracking-tight text-slate-900">
-          Receipts Upload
+        <Link href={user ? "/" : "/login"} className="text-lg font-semibold tracking-tight text-white">
+          上傳收據
         </Link>
         <button
           type="button"
           aria-label="Menu"
           aria-expanded={open}
           onClick={() => setOpen((current) => !current)}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 text-slate-800 hover:bg-slate-50"
+          className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/40 text-white hover:bg-white/10"
         >
           <span className="flex w-5 flex-col gap-1.5" aria-hidden="true">
             <span className="h-0.5 w-full bg-current" />

@@ -1,0 +1,33 @@
+# Local Docker. Production on the VPS uses docker-compose.hostinger.yml.
+# The database lives in a Docker volume because Windows folder mounts cannot
+# open this app's SQLite file. On first start the volume is filled from ./data.
+services:
+  receipts:
+    image: receipts-app:latest
+    build: .
+    container_name: receipts-local
+    user: "0:0"
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+      NODE_ENV: production
+      TZ: Asia/Hong_Kong
+      NEXT_TELEMETRY_DISABLED: "1"
+      # The site is opened over http://localhost, so the session cookie cannot be Secure.
+      COOKIE_SECURE: "false"
+    restart: unless-stopped
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        if [ ! -f /app/data/receipts.sqlite ] && [ -f /seed/receipts.sqlite ]; then
+          cp -a /seed/. /app/data/
+        fi
+        exec node server.js
+    volumes:
+      - receipts-data:/app/data
+      - ./data:/seed:ro
+
+volumes:
+  receipts-data:

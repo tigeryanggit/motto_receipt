@@ -48,6 +48,7 @@ export default function ReceiptLibrary({
   const [selected, setSelected] = useState<string[]>([]);
   const [preview, setPreview] = useState<ReceiptItem | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [downloadError, setDownloadError] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
@@ -154,6 +155,36 @@ export default function ReceiptLibrary({
     }
   }
 
+  async function downloadClaim() {
+    if (visibleSelected.length === 0 || exporting) {
+      return;
+    }
+    setExporting(true);
+    setDownloadError("");
+    try {
+      const response = await fetch("/api/receipts/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ references: visibleSelected, dateFrom }),
+      });
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
+        throw new Error(payload.error ?? "下載失敗。");
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "expense-claim.xlsx";
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (exportFailure) {
+      setDownloadError(exportFailure instanceof Error ? exportFailure.message : "下載失敗。");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   async function deleteSelected() {
     if (!canDelete || visibleSelected.length === 0 || deleting) {
       return;
@@ -185,31 +216,29 @@ export default function ReceiptLibrary({
   }
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">2. 收據檔案</h2>
-          <p className="text-sm text-slate-500">按收據日期篩選，並可按檔案名稱、收據日期或建立日期排列、預覽或下載</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="text-sm text-slate-600">
-            日期由
+    <section className="rounded-2xl border-2 border-[#001f3f] bg-[#ECF3FF] p-6 shadow-sm">
+      <div className="flex flex-col gap-4">
+        <h2 className="text-lg font-semibold">收據記錄</h2>
+        <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-wrap lg:items-center">
+          <label className="flex min-w-0 flex-col gap-1 text-sm text-slate-600 lg:flex-row lg:items-center">
+            <span className="shrink-0">日期由</span>
             <input
               type="date"
               value={dateFrom}
               onChange={(event) => setDateFrom(event.target.value)}
-              className="ml-2 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="w-full min-w-0 rounded-lg border border-slate-300 px-2 py-2 text-sm lg:w-40"
             />
           </label>
-          <label className="text-sm text-slate-600">
-            日期至
+          <label className="flex min-w-0 flex-col gap-1 text-sm text-slate-600 lg:flex-row lg:items-center">
+            <span className="shrink-0">日期至</span>
             <input
               type="date"
               value={dateTo}
               onChange={(event) => setDateTo(event.target.value)}
-              className="ml-2 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="w-full min-w-0 rounded-lg border border-slate-300 px-2 py-2 text-sm lg:w-40"
             />
           </label>
+          <div className="col-span-2 flex flex-wrap items-center gap-3 lg:col-auto">
           <label className="text-sm text-slate-600">
             排序
             <select
@@ -217,7 +246,7 @@ export default function ReceiptLibrary({
               onChange={(event) => setSortKey(event.target.value as SortKey)}
               className="ml-2 rounded-lg border border-slate-300 px-3 py-2 text-sm"
             >
-              <option value="name">檔案名稱</option>
+              <option value="name">編號</option>
               <option value="receiptDate">收據日期</option>
               <option value="createDate">建立日期</option>
             </select>
@@ -225,26 +254,37 @@ export default function ReceiptLibrary({
           <button
             type="button"
             onClick={() => setAscending((current) => !current)}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700"
+            className="rounded-lg border border-slate-300 bg-gray-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-gray-300"
           >
             {ascending ? "由小至大" : "由大至小"}
+          </button>
+          </div>
+        </div>
+        <div className="flex flex-nowrap items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => void downloadClaim()}
+            disabled={visibleSelected.length === 0 || exporting}
+            className="rounded-lg bg-[#001f3f] px-2.5 py-2 text-xs font-medium text-white transition hover:bg-[#001433] disabled:cursor-not-allowed sm:px-4 sm:text-sm"
+          >
+            {exporting ? "下載中..." : `下載表格${visibleSelected.length > 0 ? `（${visibleSelected.length}）` : ""}`}
           </button>
           <button
             type="button"
             onClick={() => void downloadSelected()}
             disabled={visibleSelected.length === 0 || downloading}
-            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-emerald-300"
+            className="rounded-lg bg-emerald-600 px-2.5 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:bg-emerald-300 sm:px-4 sm:text-sm"
           >
-            {downloading ? "下載中..." : `下載 ZIP${visibleSelected.length > 0 ? `（${visibleSelected.length}）` : ""}`}
+            {downloading ? "下載中..." : `下載收據${visibleSelected.length > 0 ? `（${visibleSelected.length}）` : ""}`}
           </button>
           {canDelete && (
             <button
               type="button"
               onClick={() => void deleteSelected()}
               disabled={visibleSelected.length === 0 || deleting}
-              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-red-200"
+              className="rounded-lg bg-red-600 px-2.5 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:bg-red-200 sm:px-4 sm:text-sm"
             >
-              {deleting ? "刪除中..." : `刪除${visibleSelected.length > 0 ? `（${visibleSelected.length}）` : ""}`}
+              {deleting ? "刪除中..." : `刪除收據${visibleSelected.length > 0 ? `（${visibleSelected.length}）` : ""}`}
             </button>
           )}
         </div>
@@ -275,13 +315,13 @@ export default function ReceiptLibrary({
                     aria-label="選擇全部收據"
                   />
                 </th>
-                <th className="px-3 py-3 text-left font-semibold text-slate-700">檔案名稱</th>
+                <th className="px-3 py-3 text-left font-semibold text-slate-700">編號</th>
                 <th className="px-3 py-3 text-left font-semibold text-slate-700">收據日期</th>
-                <th className="px-3 py-3 text-left font-semibold text-slate-700">建立日期</th>
-                <th className="px-3 py-3 text-left font-semibold text-slate-700">姓名</th>
                 <th className="px-3 py-3 text-left font-semibold text-slate-700">描述</th>
                 <th className="px-3 py-3 text-left font-semibold text-slate-700">金額</th>
+                <th className="px-3 py-3 text-left font-semibold text-slate-700">姓名</th>
                 <th className="px-3 py-3 text-left font-semibold text-slate-700">預覽</th>
+                <th className="px-3 py-3 text-left font-semibold text-slate-700">建立日期</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -295,12 +335,11 @@ export default function ReceiptLibrary({
                       aria-label={`選擇 ${item.referenceNo}`}
                     />
                   </td>
-                  <td className="px-3 py-3 font-mono text-slate-900">{item.referenceNo}.jpg</td>
+                  <td className="px-3 py-3 font-mono text-slate-900">{item.referenceNo}</td>
                   <td className="px-3 py-3 text-slate-700">{item.receiptDate}</td>
-                  <td className="px-3 py-3 text-slate-700">{item.createDate}</td>
-                  <td className="px-3 py-3 text-slate-700">{item.userName}</td>
                   <td className="px-3 py-3 text-slate-700">{item.remarks}</td>
                   <td className="px-3 py-3 text-slate-900">{item.amount}</td>
+                  <td className="px-3 py-3 text-slate-700">{item.userName}</td>
                   <td className="px-3 py-3">
                     <button
                       type="button"
@@ -310,6 +349,7 @@ export default function ReceiptLibrary({
                       預覽
                     </button>
                   </td>
+                  <td className="px-3 py-3 text-slate-700">{item.createDate}</td>
                 </tr>
               ))}
             </tbody>
@@ -320,7 +360,7 @@ export default function ReceiptLibrary({
       {preview && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 p-4 sm:items-center">
           <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
-            <h3 className="text-lg font-semibold text-slate-900">{preview.referenceNo}.jpg</h3>
+            <h3 className="text-lg font-semibold text-slate-900">{preview.referenceNo}</h3>
             <img
               src={`/api/receipts/files/${preview.referenceNo}`}
               alt={`${preview.referenceNo} 收據`}

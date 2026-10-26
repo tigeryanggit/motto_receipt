@@ -12,7 +12,8 @@ export function getDb(): Database.Database {
   const file = process.env.SQLITE_PATH || path.join(process.cwd(), "data", "receipts.sqlite");
   mkdirSync(path.dirname(file), { recursive: true });
   const db = new Database(file);
-  db.pragma("journal_mode = WAL");
+  const journal = process.env.SQLITE_JOURNAL === "DELETE" ? "DELETE" : "WAL";
+  db.pragma(`journal_mode = ${journal}`);
   db.pragma("foreign_keys = ON");
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
