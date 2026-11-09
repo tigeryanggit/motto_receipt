@@ -6,7 +6,7 @@ import type { Role } from "@/lib/users";
 
 type NavbarUser = {
   role: Role;
-  displayName: string;
+  username: string;
 } | null;
 
 export default function Navbar({ user }: { user: NavbarUser }) {
@@ -59,6 +59,11 @@ export default function Navbar({ user }: { user: NavbarUser }) {
         </button>
         {open && (
           <nav className="absolute right-4 top-14 z-50 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white py-2 shadow-lg sm:right-6">
+            {user && (
+              <p className="border-b border-slate-100 px-4 py-2 text-sm font-semibold break-all text-slate-900">
+                {user.username}
+              </p>
+            )}
             {user?.role === "admin" && (
               <div>
                 <p className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
