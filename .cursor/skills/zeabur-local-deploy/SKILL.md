@@ -1,14 +1,13 @@
 ---
 name: zeabur-local-deploy
 description: >-
-  Deploy the Receipts app from the local working copy to Zeabur using the
-  Zeabur CLI. Use only after the user says commit and deploy, together with
-  hostinger-vps-deploy. Application code only.
+  Deploy the Receipts app to Zeabur. Do not use this skill. Production
+  deploys go to Hostinger only, unless the user explicitly asks for Zeabur.
 ---
 
 # Zeabur local deploy
 
-Run this only after the user says **commit and deploy** and that commit is already on GitHub `origin/master`. Then also follow `.cursor/skills/hostinger-vps-deploy/SKILL.md`. On PowerShell, set `$env:NODE_OPTIONS='--use-system-ca'` before `npx zeabur`.
+Do not deploy to Zeabur. Production deploys go to Hostinger only. Run the commands below only when the user explicitly asks for a Zeabur deploy. On PowerShell, set `$env:NODE_OPTIONS='--use-system-ca'` before `npx zeabur`.
 
 ## Target
 

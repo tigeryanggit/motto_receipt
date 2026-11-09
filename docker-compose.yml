@@ -8,9 +8,9 @@ services:
     container_name: receipts-local
     user: "0:0"
     ports:
-      - "3000:3000"
+      - "3001:3001"
     environment:
-      PORT: "3000"
+      PORT: "3001"
       HOSTNAME: "0.0.0.0"
       NODE_ENV: production
       TZ: Asia/Hong_Kong

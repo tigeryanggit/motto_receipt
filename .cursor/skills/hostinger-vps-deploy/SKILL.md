@@ -3,12 +3,12 @@ name: hostinger-vps-deploy
 description: >-
   Deploy the Receipts app from the local working copy to the Hostinger VPS
   (receipts.mottoeducation.com) over SSH. Use only after the user says commit
-  and deploy, together with zeabur-local-deploy. Application code only.
+  and deploy. Application code only. Do not deploy to Zeabur.
 ---
 
 # Hostinger VPS deploy
 
-Run this only after the user says **commit and deploy**, the commit is already on GitHub, and the Zeabur deploy has been started. Upload application code only.
+Run this only after the user says **commit and deploy** and the commit is already on GitHub. Upload application code only. Do not deploy to Zeabur.
 
 ## Target
 

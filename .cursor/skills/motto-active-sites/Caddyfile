@@ -1,0 +1,22 @@
+# Shared by every site on this VPS. Copying a shorter file removes the other hostnames.
+booking.mottoeducation.com {
+	reverse_proxy app:3000
+}
+
+dev.mottoeducation.com {
+	reverse_proxy app-dev:3000
+}
+
+investment.mottoeducation.com {
+	reverse_proxy hsi-realtime-api:8080
+}
+
+receipts.mottoeducation.com {
+	reverse_proxy receipts-app:3000 {
+		transport http {
+			response_header_timeout 5m
+			read_timeout 5m
+			write_timeout 5m
+		}
+	}
+}

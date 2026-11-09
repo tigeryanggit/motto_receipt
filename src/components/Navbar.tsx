@@ -6,7 +6,7 @@ import type { Role } from "@/lib/users";
 
 type NavbarUser = {
   role: Role;
-  username: string;
+  displayName: string;
 } | null;
 
 export default function Navbar({ user }: { user: NavbarUser }) {
@@ -41,15 +41,19 @@ export default function Navbar({ user }: { user: NavbarUser }) {
   return (
     <header className="sticky top-0 z-40 border-b border-[#001433] bg-[#001f3f]">
       <div ref={panelRef} className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4 sm:px-6">
-        <Link href={user ? "/" : "/login"} className="text-lg font-semibold tracking-tight text-white">
+        <Link href={user ? "/" : "/login"} className="shrink-0 text-lg font-semibold tracking-tight text-white">
           上傳收據
         </Link>
+        <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-3">
+          {user && (
+            <p className="truncate text-sm font-medium text-white">Sign in as {user.displayName}</p>
+          )}
         <button
           type="button"
           aria-label="Menu"
           aria-expanded={open}
           onClick={() => setOpen((current) => !current)}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/40 text-white hover:bg-white/10"
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/40 text-white hover:bg-white/10"
         >
           <span className="flex w-5 flex-col gap-1.5" aria-hidden="true">
             <span className="h-0.5 w-full bg-current" />
@@ -57,13 +61,9 @@ export default function Navbar({ user }: { user: NavbarUser }) {
             <span className="h-0.5 w-full bg-current" />
           </span>
         </button>
+        </div>
         {open && (
           <nav className="absolute right-4 top-14 z-50 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white py-2 shadow-lg sm:right-6">
-            {user && (
-              <p className="border-b border-slate-100 px-4 py-2 text-sm font-semibold break-all text-slate-900">
-                {user.username}
-              </p>
-            )}
             {user?.role === "admin" && (
               <div>
                 <p className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400">

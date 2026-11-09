@@ -17,7 +17,7 @@ export default async function RootLayout({
   return (
     <html lang="zh-Hant">
       <body>
-        <Navbar user={user ? { role: user.role, username: user.username } : null} />
+        <Navbar user={user ? { role: user.role, displayName: user.displayName } : null} />
         {children}
       </body>
     </html>
